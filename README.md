@@ -83,3 +83,41 @@ and the dev server hot-reloads instantly. When you're happy, run
 - **React 18** — UI
 - **Vite 5** — Build tool (fast, modern)
 - No other dependencies — pure React with inline styles
+
+---
+
+## 🚗🌨️ Commute weather alert (Chicago ⇄ Naperville)
+
+A fully automated nightly check for adverse driving conditions (rain, snow,
+ice, fog, high wind) during the 4–7am commute window, with a push
+notification to your phone's lock/home screen at 10pm the night before.
+
+- **Script**: `scripts/commute-weather-alert.mjs` — checks the free NOAA/NWS
+  hourly forecast (no API key needed) for Chicago, Naperville, and the
+  I-88 corridor between them, and flags anything adverse.
+- **Schedule**: `.github/workflows/commute-weather-alert.yml` runs on
+  GitHub Actions every night (two cron entries cover both DST offsets so
+  it always lands at ~10pm America/Chicago; the script self-checks the
+  local hour and no-ops the wrong one).
+- **Delivery**: [ntfy.sh](https://ntfy.sh) push notifications — free, no
+  account required.
+
+### One-time setup
+
+1. Install the [ntfy app](https://ntfy.sh/#subscribe) on your phone
+   (iOS/Android) and subscribe to this topic:
+   ```
+   ryan-commute-wx-287f1063d3d1
+   ```
+2. In this GitHub repo, go to **Settings → Secrets and variables →
+   Actions → New repository secret** and add:
+   - Name: `NTFY_TOPIC`
+   - Value: `ryan-commute-wx-287f1063d3d1`
+   (Treat this topic name as a shared secret — anyone who knows it can
+   read or post to it on the public ntfy.sh server.)
+3. Done. You'll get a notification every night around 10pm, and can also
+   trigger a test run any time from the **Actions** tab → "Commute
+   Weather Alert" → **Run workflow**.
+
+No further action is needed after setup — the workflow runs on GitHub's
+servers independent of any local machine or Claude session.
