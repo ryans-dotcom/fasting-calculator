@@ -1,0 +1,25 @@
+name: Commute Weather Alert
+
+on:
+  schedule:
+    # Two crons, one per DST offset, so exactly one fires at ~10pm
+    # America/Chicago year-round. The script itself checks the current
+    # Chicago local hour and skips the run that lands at the wrong time.
+    - cron: '0 3 * * *' # ~22:00 America/Chicago during CDT (UTC-5)
+    - cron: '0 4 * * *' # ~22:00 America/Chicago during CST (UTC-6)
+  workflow_dispatch: {}
+
+jobs:
+  check-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check commute weather and notify
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/commute-weather-alert.mjs
