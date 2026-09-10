@@ -129,17 +129,14 @@ async function sendNtfy({ title, message, priority, tags }) {
 }
 
 async function main() {
-  const isManualRun = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
-  const hour = chicagoHour();
-
-  // The workflow schedules two crons (one per DST offset) so that one of
-  // them always lands at 10pm America/Chicago. Skip the one that doesn't.
-  if (!isManualRun && hour !== 22) {
-    console.log(`Skipping: current America/Chicago hour is ${hour}, not 22.`);
-    return;
-  }
-
-  const targetDate = formatChicagoDate(new Date(Date.now() + 24 * 60 * 60 * 1000));
+  // GitHub's schedule trigger is best-effort and can run hours late. Rather
+  // than gate on "is it exactly 10pm right now" (which silently skips a
+  // delayed run and produces no notification at all), always send, and pick
+  // the target commute date relative to whichever day it actually runs on:
+  // before local noon means a late run has slipped past midnight and the
+  // 4-7am window is still later *today*; otherwise it's tomorrow.
+  const daysAhead = chicagoHour() < 12 ? 0 : 1;
+  const targetDate = formatChicagoDate(new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000));
   const results = await Promise.all(LOCATIONS.map((loc) => checkLocation(loc, targetDate)));
 
   const anyAdverse = results.some((r) => r.flags.length > 0);

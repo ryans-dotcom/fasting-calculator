@@ -2,11 +2,11 @@ name: Commute Weather Alert
 
 on:
   schedule:
-    # Two crons, one per DST offset, so exactly one fires at ~10pm
-    # America/Chicago year-round. The script itself checks the current
-    # Chicago local hour and skips the run that lands at the wrong time.
-    - cron: '0 3 * * *' # ~22:00 America/Chicago during CDT (UTC-5)
-    - cron: '0 4 * * *' # ~22:00 America/Chicago during CST (UTC-6)
+    # Targets ~22:00 America/Chicago during CDT (UTC-5); drifts to ~21:00
+    # during CST (UTC-6, roughly Nov-Mar). GitHub's schedule trigger is
+    # also best-effort and can run behind — the script always sends
+    # regardless of exactly when it fires, rather than silently skipping.
+    - cron: '0 3 * * *'
   workflow_dispatch: {}
 
 jobs:
