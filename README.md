@@ -95,21 +95,15 @@ notification to your phone's lock/home screen at 9:30pm the night before.
 - **Script**: `scripts/commute-weather-alert.mjs` — checks the free NOAA/NWS
   hourly forecast (no API key needed) for Chicago, Naperville, and the
   I-88 corridor between them, and flags anything adverse.
-- **Schedule**: `.github/workflows/commute-weather-alert.yml` runs on
-  GitHub Actions every night, targeting ~9:30pm America/Chicago (drifts
-  ~1 hour across the twice-yearly DST change, since the cron is fixed in
-  UTC). The workflow always sends when it runs, rather than skipping if
-  it's not exactly the target time — see note on timing below.
+- **Trigger**: `.github/workflows/commute-weather-alert.yml` has no
+  `schedule:` block on purpose — GitHub's own cron scheduler ran this
+  workflow 4.5-5 hours late, repeatedly, which is a documented risk of
+  that trigger ("best effort," not exact). Instead, an external cron
+  service calls the workflow's dispatch API directly at 9:30pm
+  America/Chicago every night (see setup step 3 below), which is
+  immediate rather than queued.
 - **Delivery**: [ntfy.sh](https://ntfy.sh) push notifications — free, no
   account required.
-
-**A note on timing accuracy:** GitHub's `schedule` trigger is documented as
-best-effort, not exact — on this repo it has run up to ~5 hours late on
-occasion. There is no way to force GitHub's own scheduler to fire exactly
-on time from within the workflow file. If you need the notification to
-reliably land at 9:30pm sharp rather than "sometime that night," the fix is
-to trigger the workflow from an external cron service instead of relying
-on GitHub's built-in schedule — ask if you'd like this set up.
 
 ### One-time setup
 
@@ -124,10 +118,45 @@ on GitHub's built-in schedule — ask if you'd like this set up.
    - Value: `ryan-commute-wx-287f1063d3d1`
    (Treat this topic name as a shared secret — anyone who knows it can
    read or post to it on the public ntfy.sh server.)
-3. Done. You'll get a notification most nights around 9:30pm (subject to
-   GitHub's scheduling delay, see above), and can also trigger a test run
-   any time from the **Actions** tab → "Commute Weather Alert" →
-   **Run workflow**.
+3. **Reliable exact-time triggering** — set up an external cron service
+   to call GitHub's API at 9:30pm sharp every night:
 
-No further action is needed after setup — the workflow runs on GitHub's
-servers independent of any local machine or Claude session.
+   **a. Create a scoped GitHub access token** (only you can do this —
+   it can't be created via any tool or API call):
+   - Go to [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
+   - Set **Repository access** → **Only select repositories** →
+     `fasting-calculator`
+   - Under **Permissions → Repository permissions**, set **Actions** to
+     **Read and write**. Leave everything else as "No access."
+   - Set an expiration (e.g. 1 year) and generate the token. **Copy it
+     immediately** — GitHub only shows it once. Never commit this token
+     or add it as a repo secret; it only goes into the cron service
+     below.
+
+   **b. Sign up for a free cron-ping service** (e.g.
+   [cron-job.org](https://cron-job.org)) and create a job with:
+   - **URL**: `https://api.github.com/repos/ryans-dotcom/fasting-calculator/actions/workflows/commute-weather-alert.yml/dispatches`
+   - **Method**: `POST`
+   - **Headers**:
+     ```
+     Accept: application/vnd.github+json
+     Authorization: Bearer <the token from step a>
+     X-GitHub-Api-Version: 2022-11-28
+     Content-Type: application/json
+     ```
+   - **Body**: `{"ref":"main"}`
+   - **Schedule**: daily at 9:30 PM, timezone **America/Chicago** (most
+     cron-ping services let you pick a timezone per job, which handles
+     the twice-yearly DST shift automatically — confirm this in
+     whichever service you choose).
+   - A successful call returns HTTP 204 with no body. Trigger it once
+     manually from the service's dashboard to confirm you get a 204 (and
+     a real notification), then leave it on its schedule.
+
+   **Token upkeep**: when the token nears its expiration date, generate
+   a new one (same steps) and update it in the cron service — the old
+   job silently starts failing (401) once the token expires.
+
+Once step 3 is configured, everything runs independently of any local
+machine, browser tab, or Claude session — the cron service calls GitHub
+directly on schedule.

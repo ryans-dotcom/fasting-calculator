@@ -1,12 +1,13 @@
 name: Commute Weather Alert
 
 on:
-  schedule:
-    # Targets ~21:30 America/Chicago during CDT (UTC-5); drifts to ~20:30
-    # during CST (UTC-6, roughly Nov-Mar). GitHub's schedule trigger is
-    # also best-effort and can run behind — the script always sends
-    # regardless of exactly when it fires, rather than silently skipping.
-    - cron: '30 2 * * *'
+  # No `schedule:` trigger here on purpose: GitHub's own cron scheduler
+  # proved unreliable for this workflow (observed running 4.5-5 hours
+  # late, repeatedly). Nightly runs are instead triggered on time by an
+  # external cron service calling this workflow's dispatch API — see the
+  # "Reliable exact-time triggering" section in the README. This event
+  # is what that external call (and the manual "Run workflow" button)
+  # both use.
   workflow_dispatch: {}
 
 jobs:
