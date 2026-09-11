@@ -90,17 +90,26 @@ and the dev server hot-reloads instantly. When you're happy, run
 
 A fully automated nightly check for adverse driving conditions (rain, snow,
 ice, fog, high wind) during the 4–7am commute window, with a push
-notification to your phone's lock/home screen at 10pm the night before.
+notification to your phone's lock/home screen at 9:30pm the night before.
 
 - **Script**: `scripts/commute-weather-alert.mjs` — checks the free NOAA/NWS
   hourly forecast (no API key needed) for Chicago, Naperville, and the
   I-88 corridor between them, and flags anything adverse.
 - **Schedule**: `.github/workflows/commute-weather-alert.yml` runs on
-  GitHub Actions every night (two cron entries cover both DST offsets so
-  it always lands at ~10pm America/Chicago; the script self-checks the
-  local hour and no-ops the wrong one).
+  GitHub Actions every night, targeting ~9:30pm America/Chicago (drifts
+  ~1 hour across the twice-yearly DST change, since the cron is fixed in
+  UTC). The workflow always sends when it runs, rather than skipping if
+  it's not exactly the target time — see note on timing below.
 - **Delivery**: [ntfy.sh](https://ntfy.sh) push notifications — free, no
   account required.
+
+**A note on timing accuracy:** GitHub's `schedule` trigger is documented as
+best-effort, not exact — on this repo it has run up to ~5 hours late on
+occasion. There is no way to force GitHub's own scheduler to fire exactly
+on time from within the workflow file. If you need the notification to
+reliably land at 9:30pm sharp rather than "sometime that night," the fix is
+to trigger the workflow from an external cron service instead of relying
+on GitHub's built-in schedule — ask if you'd like this set up.
 
 ### One-time setup
 
@@ -115,9 +124,10 @@ notification to your phone's lock/home screen at 10pm the night before.
    - Value: `ryan-commute-wx-287f1063d3d1`
    (Treat this topic name as a shared secret — anyone who knows it can
    read or post to it on the public ntfy.sh server.)
-3. Done. You'll get a notification every night around 10pm, and can also
-   trigger a test run any time from the **Actions** tab → "Commute
-   Weather Alert" → **Run workflow**.
+3. Done. You'll get a notification most nights around 9:30pm (subject to
+   GitHub's scheduling delay, see above), and can also trigger a test run
+   any time from the **Actions** tab → "Commute Weather Alert" →
+   **Run workflow**.
 
 No further action is needed after setup — the workflow runs on GitHub's
 servers independent of any local machine or Claude session.

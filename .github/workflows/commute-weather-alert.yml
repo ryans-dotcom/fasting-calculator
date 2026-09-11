@@ -2,11 +2,11 @@ name: Commute Weather Alert
 
 on:
   schedule:
-    # Targets ~22:00 America/Chicago during CDT (UTC-5); drifts to ~21:00
+    # Targets ~21:30 America/Chicago during CDT (UTC-5); drifts to ~20:30
     # during CST (UTC-6, roughly Nov-Mar). GitHub's schedule trigger is
     # also best-effort and can run behind — the script always sends
     # regardless of exactly when it fires, rather than silently skipping.
-    - cron: '0 3 * * *'
+    - cron: '30 2 * * *'
   workflow_dispatch: {}
 
 jobs:
