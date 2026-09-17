@@ -95,6 +95,14 @@ notification to your phone's lock/home screen at 9:30pm the night before.
 - **Script**: `scripts/commute-weather-alert.mjs` — checks the free NOAA/NWS
   hourly forecast (no API key needed) for Chicago, Naperville, and the
   I-88 corridor between them, and flags anything adverse.
+- **Delay estimate**: the notification title leads with a ballpark commute
+  impact — "Normal commute time," "Extra 5-10 min expected," up through
+  "Extra 35-60+ min expected — leave early" for ice/blizzard conditions.
+  This is a rule-of-thumb bucket by condition severity (see
+  `SEVERITY_LEVELS` in the script), not live traffic data — nothing free
+  gives a weather-adjusted ETA for a specific route, so treat it as a
+  ballpark calibrated against typical real-world impact rather than a
+  precise prediction.
 - **Trigger**: `.github/workflows/commute-weather-alert.yml` has no
   `schedule:` block on purpose — GitHub's own cron scheduler ran this
   workflow 4.5-5 hours late, repeatedly, which is a documented risk of

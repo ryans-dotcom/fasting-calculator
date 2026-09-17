@@ -26,6 +26,19 @@ const FREEZING_F = 32;
 const COMMUTE_START_HOUR = 4;
 const COMMUTE_END_HOUR = 7;
 
+// Rough delay estimate by condition severity. This isn't live traffic data
+// (nothing free gives a weather-adjusted ETA) — it's a rule-of-thumb bucket
+// based on how bad the reported conditions are, calibrated loosely against
+// typical real-world commute impact (e.g. steady/heavy rain running ~20min
+// over normal). Treat it as a ballpark, not a prediction.
+const SEVERITY_LEVELS = [
+  { level: 0, headline: 'Normal commute time', priority: 3, tags: ['white_check_mark', 'car'] },
+  { level: 1, headline: 'Extra 5-10 min expected', priority: 3, tags: ['fog', 'car'] },
+  { level: 2, headline: 'Extra 10-20 min expected', priority: 4, tags: ['cloud_with_rain', 'car'] },
+  { level: 3, headline: 'Extra 20-35 min expected', priority: 4, tags: ['warning', 'car'] },
+  { level: 4, headline: 'Extra 35-60+ min expected — leave early', priority: 5, tags: ['rotating_light', 'car'] },
+];
+
 function formatChicagoDate(date) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Chicago',
@@ -83,6 +96,38 @@ function evaluatePeriod(period) {
   return flags;
 }
 
+function severityOfPeriod(period) {
+  const shortForecast = (period.shortForecast || '').toLowerCase();
+  const precipProb = period.probabilityOfPrecipitation?.value ?? 0;
+  const tempF = period.temperature;
+  const windNums = (period.windSpeed || '').match(/\d+/g)?.map(Number) ?? [];
+  const maxWind = windNums.length ? Math.max(...windNums) : 0;
+
+  // Freezing rain/drizzle risks invisible ice and is worse than plain snow,
+  // which already has its own tier below — don't let snow forecasts (which
+  // are almost always at/below freezing) get swept into this branch.
+  const iceRisk =
+    tempF <= FREEZING_F && precipProb > 0 && !shortForecast.includes('snow') && !shortForecast.includes('flurries');
+  const severeKeywords = ['blizzard', 'ice storm', 'freezing rain', 'sleet', 'freezing'];
+  const significantKeywords = ['heavy rain', 'heavy snow', 'thunderstorm', 'snow'];
+  const moderateKeywords = ['rain', 'showers', 'drizzle'];
+  const minorKeywords = ['fog', 'mist', 'flurries'];
+
+  if (iceRisk || severeKeywords.some((k) => shortForecast.includes(k))) {
+    return 4;
+  }
+  if (significantKeywords.some((k) => shortForecast.includes(k)) || precipProb >= 70 || maxWind >= 35) {
+    return 3;
+  }
+  if (moderateKeywords.some((k) => shortForecast.includes(k)) || precipProb >= PRECIP_PROB_THRESHOLD || maxWind >= WIND_THRESHOLD_MPH) {
+    return 2;
+  }
+  if (minorKeywords.some((k) => shortForecast.includes(k)) || precipProb >= 20) {
+    return 1;
+  }
+  return 0;
+}
+
 async function checkLocation(loc, targetDate) {
   const points = await fetchJson(`https://api.weather.gov/points/${loc.lat},${loc.lon}`);
   const hourlyUrl = points.properties.forecastHourly;
@@ -97,12 +142,14 @@ async function checkLocation(loc, targetDate) {
   const forecasts = new Set();
   let minTemp = Infinity;
   let maxTemp = -Infinity;
+  let severity = 0;
 
   for (const p of periods) {
     evaluatePeriod(p).forEach((f) => flags.add(f));
     forecasts.add(p.shortForecast);
     minTemp = Math.min(minTemp, p.temperature);
     maxTemp = Math.max(maxTemp, p.temperature);
+    severity = Math.max(severity, severityOfPeriod(p));
   }
 
   return {
@@ -110,6 +157,7 @@ async function checkLocation(loc, targetDate) {
     flags: [...flags],
     forecasts: [...forecasts],
     tempRange: periods.length ? `${minTemp}–${maxTemp}°F` : 'no data',
+    severity,
   };
 }
 
@@ -139,23 +187,22 @@ async function main() {
   const targetDate = formatChicagoDate(new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000));
   const results = await Promise.all(LOCATIONS.map((loc) => checkLocation(loc, targetDate)));
 
-  const anyAdverse = results.some((r) => r.flags.length > 0);
+  const overallSeverity = Math.max(...results.map((r) => r.severity));
+  const { headline, priority, tags } = SEVERITY_LEVELS[overallSeverity];
   const lines = results.map((r) => {
     const status = r.flags.length ? `⚠️ ${r.flags.join('; ')}` : '✓ no issues flagged';
     return `${r.name}: ${r.tempRange}, ${r.forecasts.join('/') || 'no data'} — ${status}`;
   });
 
-  const title = anyAdverse
-    ? 'Adverse driving conditions 4-7am tomorrow'
-    : 'Commute weather looks clear (4-7am)';
-  const message = [`Chicago <-> Naperville commute, ${targetDate}, 4-7am:`, '', ...lines].join('\n');
+  const message = [
+    `${headline} (estimate, not live traffic)`,
+    '',
+    `Chicago <-> Naperville commute, ${targetDate}, 4-7am:`,
+    '',
+    ...lines,
+  ].join('\n');
 
-  await sendNtfy({
-    title,
-    message,
-    priority: anyAdverse ? 4 : 3,
-    tags: anyAdverse ? ['warning', 'car'] : ['white_check_mark', 'car'],
-  });
+  await sendNtfy({ title: headline, message, priority, tags });
 
   console.log(message);
 }
