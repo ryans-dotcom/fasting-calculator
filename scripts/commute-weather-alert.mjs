@@ -158,6 +158,7 @@ async function checkLocation(loc, targetDate) {
     forecasts: [...forecasts],
     tempRange: periods.length ? `${minTemp}–${maxTemp}°F` : 'no data',
     severity,
+    hasData: periods.length > 0,
   };
 }
 
@@ -187,15 +188,25 @@ async function main() {
   const targetDate = formatChicagoDate(new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000));
   const results = await Promise.all(LOCATIONS.map((loc) => checkLocation(loc, targetDate)));
 
+  const anyData = results.some((r) => r.hasData);
   const overallSeverity = Math.max(...results.map((r) => r.severity));
-  const { headline, priority, tags } = SEVERITY_LEVELS[overallSeverity];
+  // No location returned any forecast periods for the target window — most
+  // likely this ran (e.g. a manual test) after the window already passed
+  // for "today," or NWS is having an outage. Don't claim "Normal commute
+  // time" when there's actually nothing to base that on.
+  const { headline, priority, tags } = anyData
+    ? SEVERITY_LEVELS[overallSeverity]
+    : { headline: 'No forecast data available', priority: 3, tags: ['grey_question', 'car'] };
   const lines = results.map((r) => {
     const status = r.flags.length ? `⚠️ ${r.flags.join('; ')}` : '✓ no issues flagged';
     return `${r.name}: ${r.tempRange}, ${r.forecasts.join('/') || 'no data'} — ${status}`;
   });
 
+  const estimateNote = anyData
+    ? `${headline} (estimate, not live traffic)`
+    : `${headline} — commute window may have already passed for "${targetDate}," or NWS is unavailable`;
   const message = [
-    `${headline} (estimate, not live traffic)`,
+    estimateNote,
     '',
     `Chicago <-> Naperville commute, ${targetDate}, 4-7am:`,
     '',
