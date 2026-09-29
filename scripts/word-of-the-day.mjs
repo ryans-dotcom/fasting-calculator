@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Daily "word of the day" push notification: a challenging vocabulary word,
-// its definition, and an example sentence, delivered via ntfy.sh.
+// how to pronounce it, its definition, and an example sentence, delivered
+// via ntfy.sh.
 //
 // Words come from the curated list in scripts/words.json and rotate one per
 // day (America/Chicago date), so the whole list plays through before any
@@ -56,7 +57,30 @@ function pickWord(words, isoDate) {
   return words[dayNumber(isoDate) % words.length];
 }
 
-async function sendNtfy({ title, message, tags, click }) {
+// Best-effort lookup of a recorded pronunciation from the free Dictionary
+// API (no key required). Coverage is incomplete, especially for rarer words
+// and multi-word phrases, so any failure just means no audio button — the
+// written pronunciation from words.json is always included.
+async function findAudioUrl(word) {
+  try {
+    const res = await fetch(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok) return null;
+    const entries = await res.json();
+    const audios = entries
+      .flatMap((e) => e.phonetics || [])
+      .map((p) => p.audio)
+      .filter(Boolean);
+    // Prefer a US recording when there's a choice.
+    return audios.find((a) => a.includes('-us.')) || audios[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendNtfy({ title, message, tags, click, actions }) {
   const topic = process.env.WORD_NTFY_TOPIC;
   if (!topic) throw new Error('WORD_NTFY_TOPIC environment variable is required');
   const server = process.env.NTFY_SERVER || 'https://ntfy.sh';
@@ -64,7 +88,7 @@ async function sendNtfy({ title, message, tags, click }) {
   const res = await fetch(server, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, title, message, priority: 3, tags, click }),
+    body: JSON.stringify({ topic, title, message, priority: 3, tags, click, actions }),
   });
   if (!res.ok) {
     throw new Error(`ntfy publish failed: ${res.status} ${await res.text()}`);
@@ -81,6 +105,8 @@ async function main() {
   const title = `Word of the Day: ${entry.word}`;
   const message = [
     `${entry.word} (${pos})`,
+    `Say it: ${entry.pronunciation}`,
+    '',
     entry.definition,
     '',
     `“${entry.example}”`,
@@ -89,13 +115,17 @@ async function main() {
   // (pronunciation, etymology, more examples).
   const click = `https://www.merriam-webster.com/dictionary/${encodeURIComponent(entry.word)}`;
 
+  const audioUrl = await findAudioUrl(entry.word);
+  const actions = audioUrl ? [{ action: 'view', label: '🔊 Hear it', url: audioUrl }] : [];
+
   if (!args.dryRun) {
-    await sendNtfy({ title, message, tags: ['books'], click });
+    await sendNtfy({ title, message, tags: ['books'], click, actions });
   }
 
   console.log(`${date}${args.dryRun ? ' (dry run, not sent)' : ''}`);
   console.log(title);
   console.log(message);
+  console.log(`Audio: ${audioUrl || 'none found'}`);
 }
 
 main().catch((err) => {

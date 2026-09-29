@@ -173,12 +173,15 @@ directly on schedule.
 
 ## 📚 Word of the day
 
-A daily push notification with a challenging vocabulary word, its
-definition, and an example sentence showing how it's commonly used, e.g.:
+A daily push notification with a challenging vocabulary word, how to
+pronounce it, its definition, and an example sentence showing how it's
+commonly used, e.g.:
 
 ```
 Word of the Day: punctilious
 punctilious (adj.)
+Say it: pungk-TIL-ee-us
+
 Showing great attention to detail or correct behavior.
 
 “The punctilious butler set every fork exactly one inch from the plate.”
@@ -187,9 +190,18 @@ Showing great attention to detail or correct behavior.
 Tapping the notification opens the word's Merriam-Webster entry
 (pronunciation, etymology, more examples).
 
+**Pronunciation**: every word has a plain-English respelling with the
+stressed syllable in capitals (`pungk-TIL-ee-us`), so no phonetic symbols
+to decode. When the free [Dictionary API](https://dictionaryapi.dev) has
+a recording of the word, the notification also gets a **🔊 Hear it**
+button that plays it. Rarer words and phrases often have no recording;
+those days you just get the written version (and Merriam-Webster's page,
+one tap away, has audio for nearly everything).
+
 - **Words**: `scripts/words.json` — a hand-curated list of 436
   sophisticated words (think *perspicacious*, *obsequious*, *sangfroid*),
-  each with part of speech, definition, and example sentence. No API or
+  each with pronunciation, part of speech, definition, and example
+  sentence. No API or
   key needed. To add your own, append an entry in the same format.
 - **Rotation**: one word per day, picked by the America/Chicago calendar
   date, so every word in the list comes up once before any repeats
