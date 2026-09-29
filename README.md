@@ -168,3 +168,60 @@ notification to your phone's lock/home screen at 9:30pm the night before.
 Once step 3 is configured, everything runs independently of any local
 machine, browser tab, or Claude session — the cron service calls GitHub
 directly on schedule.
+
+---
+
+## 📚 Word of the day
+
+A daily push notification with a challenging vocabulary word, its
+definition, and an example sentence showing how it's commonly used, e.g.:
+
+```
+Word of the Day: punctilious
+punctilious (adj.)
+Showing great attention to detail or correct behavior.
+
+“The punctilious butler set every fork exactly one inch from the plate.”
+```
+
+Tapping the notification opens the word's Merriam-Webster entry
+(pronunciation, etymology, more examples).
+
+- **Words**: `scripts/words.json` — a hand-curated list of 436
+  sophisticated words (think *perspicacious*, *obsequious*, *sangfroid*),
+  each with part of speech, definition, and example sentence. No API or
+  key needed. To add your own, append an entry in the same format.
+- **Rotation**: one word per day, picked by the America/Chicago calendar
+  date, so every word in the list comes up once before any repeats
+  (about 14 months at the current size).
+- **Script**: `scripts/word-of-the-day.mjs`. Preview without sending:
+  ```bash
+  node scripts/word-of-the-day.mjs --dry-run
+  node scripts/word-of-the-day.mjs --dry-run --date 2026-12-25
+  ```
+- **Trigger**: `.github/workflows/word-of-the-day.yml`, dispatch-only for
+  the same reason as the commute alert (GitHub's own cron runs late).
+- **Delivery**: ntfy.sh, on its own topic so you can mute or configure it
+  separately from commute alerts.
+
+### One-time setup
+
+1. In the ntfy app, subscribe to this topic:
+   ```
+   ryan-word-of-day-f7cb6065dd2a
+   ```
+2. In this GitHub repo, go to **Settings → Secrets and variables →
+   Actions → New repository secret** and add:
+   - Name: `WORD_NTFY_TOPIC`
+   - Value: `ryan-word-of-day-f7cb6065dd2a`
+3. In your cron service (e.g. cron-job.org), create a second job
+   the same way as the commute alert's step 3b, reusing the same GitHub
+   token (it already has Actions read/write on this repo), with:
+   - **URL**: `https://api.github.com/repos/ryans-dotcom/fasting-calculator/actions/workflows/word-of-the-day.yml/dispatches`
+   - **Method**, **Headers**, **Body**: identical to the commute job
+   - **Schedule**: daily at whatever time you'd like the word, e.g.
+     7:00 AM, timezone **America/Chicago**
+
+   Test it once from the service's dashboard. You should get HTTP 204
+   and a notification within a minute or so. You can also trigger it any
+   time from GitHub's **Actions → Word of the Day → Run workflow** button.

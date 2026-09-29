@@ -1,0 +1,24 @@
+name: Word of the Day
+
+on:
+  # Like commute-weather-alert.yml, there's no `schedule:` trigger on
+  # purpose: GitHub's cron scheduler can run hours late. Daily runs are
+  # triggered on time by an external cron service calling this workflow's
+  # dispatch API — see the "Word of the day" section in the README. The
+  # manual "Run workflow" button uses this same event.
+  workflow_dispatch: {}
+
+jobs:
+  send-word:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Send word of the day
+        env:
+          WORD_NTFY_TOPIC: ${{ secrets.WORD_NTFY_TOPIC }}
+        run: node scripts/word-of-the-day.mjs
